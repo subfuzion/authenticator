@@ -33,6 +33,7 @@ var tokenCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		roleARN := viper.GetString("role")
 		clusterID := viper.GetString("clusterID")
+		kubectl := viper.GetBool("kubectl")
 
 		if clusterID == "" {
 			fmt.Fprintf(os.Stderr, "error: cluster ID not specified\n")
@@ -58,7 +59,12 @@ var tokenCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "could not get token: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println(tok)
+		if kubectl == true {
+			enc := gen.FormatJSON(tok)
+			fmt.Println(enc)
+		} else {
+			fmt.Println(tok)
+		}
 	},
 }
 
@@ -67,4 +73,8 @@ func init() {
 	tokenCmd.Flags().StringP("role", "r", "", "Assume an IAM Role ARN before signing this token")
 	viper.BindPFlag("role", tokenCmd.Flags().Lookup("role"))
 	viper.BindEnv("role", "DEFAULT_ROLE")
+
+	tokenCmd.Flags().BoolP("kubectl", "k", false, "Allows you to export the 1.10 kubectl authentication JSON")
+	viper.BindPFlag("kubectl", tokenCmd.Flags().Lookup("kubectl"))
+	viper.BindEnv("kubectl", "EXPORT_KUBECTL_CONFIG")
 }

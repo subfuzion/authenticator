@@ -119,12 +119,35 @@ type getCallerIdentityWrapper struct {
 	} `json:"GetCallerIdentityResponse"`
 }
 
+// authTokenOutput adds the specific formatting for the kubectl 1.10 authProvider code
+type authTokenOutput struct {
+	// APIVersion is the apiVersion that is necessary for the authProvider
+	// code to work.
+	// defined as "client.authentication.k8s.io/v1alpha1"
+	APIVersion string `json:"apiVersion"`
+
+	// Kind is the kind of document this is sending
+	// defined as "ExecCredential"
+	Kind string `json:"kind"`
+
+	// Status is where the token information lives
+	Status statusOutput `json:"status"`
+}
+
+// statusOutput define the status key for the kubectl token input
+type statusOutput struct {
+	// Token is the actual STS token that is generated
+	Token string `json:"status"`
+}
+
 // Generator provides new tokens for the heptio authenticator.
 type Generator interface {
 	// Get a token using credentials in the default credentials chain.
 	Get(string) (string, error)
 	// GetWithRole creates a token by assuming the provided role, using the credentials in the default chain.
 	GetWithRole(clusterID, roleARN string) (string, error)
+	// FormatJSON returns the kubectl formatted json for the external authProvider
+	FormatJSON(string) string
 }
 
 type generator struct {
@@ -178,6 +201,19 @@ func (g generator) GetWithRole(clusterID string, roleARN string) (string, error)
 
 	// TODO: this may need to be a constant-time base64 encoding
 	return v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString)), nil
+}
+
+// FormatJSON formats the json to support 1.10 external authProvider
+func (g generator) FormatJSON(token string) string {
+	authOutput := &authTokenOutput{
+		APIVersion: "client.authentication.k8s.io/v1alpha1",
+		Kind:       "ExecCredential",
+		Status: statusOutput{
+			Token: token,
+		},
+	}
+	enc, _ := json.Marshal(authOutput)
+	return string(enc)
 }
 
 // Verifier validates tokens by calling STS and returning the associated identity.
